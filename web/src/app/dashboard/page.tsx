@@ -3,6 +3,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
+import { useToast } from "@/components/toast";
 
 type Draft = Record<string, string>;
 
@@ -21,6 +22,7 @@ function pnlSign(n: number) { return n > 0 ? "+" : ""; }
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
+  const { toast } = useToast();
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [trading, setTrading] = useState<Record<string, unknown> | null>(null);
   const [adsense, setAdsense] = useState<Record<string, unknown> | null>(null);
@@ -63,25 +65,25 @@ export default function DashboardPage() {
   if (!session) redirect("/login");
 
   const generateDraft = async () => {
-    if (!keyword.trim()) return alert("키워드를 입력하세요.");
+    if (!keyword.trim()) return toast("키워드를 입력하세요.", "error");
     setGenerating(true);
     try {
       const data = await api("/api/blog/generate", {
         method: "POST",
         body: JSON.stringify({ blog_type: blogType, keyword, context, cpc_category: cpcCategory }),
       });
-      alert(`초안 생성 완료! (${data.draft_id})`);
+      toast(`초안 생성 완료! (${data.draft_id})`);
       setKeyword(""); setContext("");
       loadStats(); loadDrafts();
     } catch (e) {
-      alert("생성 실패: " + (e as Error).message);
+      toast("생성 실패: " + (e as Error).message, "error");
     } finally { setGenerating(false); }
   };
 
   const copyHtml = async (draft: Draft) => {
     try {
       await navigator.clipboard.writeText(draft["HTML본문"] || "");
-      alert("HTML 복사 완료!\n\n티스토리 에디터 → HTML 모드에 붙여넣기 하세요.");
+      toast("HTML 복사 완료! 티스토리 에디터 HTML 모드에 붙여넣기 하세요.");
       await updateStatus(draft["ID"], "발행완료");
     } catch {
       // fallback
@@ -91,27 +93,27 @@ export default function DashboardPage() {
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
-      alert("HTML 복사 완료!");
+      toast("HTML 복사 완료!");
     }
   };
 
   const copyTitle = async (draft: Draft) => {
     await navigator.clipboard.writeText(draft["제목"] || "");
-    alert("제목 복사 완료!");
+    toast("제목 복사 완료!");
   };
 
   const copyTags = async (draft: Draft) => {
     await navigator.clipboard.writeText(draft["태그"] || "");
-    alert("태그 복사 완료!");
+    toast("태그 복사 완료!");
   };
 
 
   const updateStatus = async (id: string, s: string) => {
     try {
       await api(`/api/drafts/${id}`, { method: "PATCH", body: JSON.stringify({ status: s }) });
-      alert(`상태 변경: ${s}`);
+      toast(`상태 변경: ${s}`);
       setPreview(null); loadDrafts();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast((e as Error).message, "error"); }
   };
 
   const bal = (trading as Record<string, Record<string, unknown>> | null)?.balance || {};
@@ -319,8 +321,8 @@ export default function DashboardPage() {
                       method: "POST",
                       body: JSON.stringify({ source_type: "블로그", source_id: preview["ID"], title: preview["제목"], html_content: preview["HTML본문"] }),
                     });
-                    alert("Threads 3개 생성 완료! 콘텐츠 페이지에서 확인하세요.");
-                  } catch (e) { alert((e as Error).message); }
+                    toast("Threads 3개 생성 완료! 콘텐츠 페이지에서 확인하세요.");
+                  } catch (e) { toast((e as Error).message, "error"); }
                   finally { setThreadGenerating(false); }
                 }} className="text-xs text-pink-400 border border-pink-800 px-3 py-1.5 rounded hover:bg-pink-900 disabled:opacity-50">{threadGenerating ? "생성중..." : "Threads 생성"}</button>
               </div>
@@ -377,6 +379,7 @@ const GOAL_YEARS = 5;
 const GOAL_MONTHS = GOAL_YEARS * 12;
 
 function BudgetSection() {
+  const { toast } = useToast();
   const [budget, setBudget] = useState<BudgetData | null>(null);
   const [tradingData, setTradingData] = useState<Record<string, unknown> | null>(null);
   const [showAdd, setShowAdd] = useState<"income" | "fixed" | "expense" | null>(null);
@@ -404,7 +407,7 @@ function BudgetSection() {
       setForm({ name: "", amount: "", category: "식비", memo: "" });
       setShowAdd(null);
       load();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast((e as Error).message, "error"); }
     finally { setLoading(false); }
   };
 
@@ -423,7 +426,7 @@ function BudgetSection() {
       setForm({ name: "", amount: "", category: "식비", memo: "" });
       setShowAdd(null);
       load();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast((e as Error).message, "error"); }
     finally { setLoading(false); }
   };
 

@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
+import { useToast } from "@/components/toast";
 
 type CalendarItem = { date: string; type: "blog" | "reels" | "threads"; title: string; status: string; id: string; blogType?: string };
 type ThreadItem = Record<string, string>;
@@ -35,6 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function ContentPage() {
   const { data: session, status } = useSession();
+  const { toast } = useToast();
   const [tab, setTab] = useState<"calendar" | "reels" | "threads">("calendar");
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [calendar, setCalendar] = useState<CalendarItem[]>([]);
@@ -90,7 +92,7 @@ export default function ContentPage() {
 
   const copyThread = async (content: string) => {
     await navigator.clipboard.writeText(content);
-    alert("복사 완료! Threads에 붙여넣기 하세요.");
+    toast("복사 완료! Threads에 붙여넣기 하세요.");
   };
 
   const generateFromDraft = async (draftId: string, title: string, html: string) => {
@@ -100,10 +102,10 @@ export default function ContentPage() {
         method: "POST",
         body: JSON.stringify({ source_type: "블로그", source_id: draftId, title, html_content: html, count: 3 }),
       });
-      alert("Threads 글 3개 생성 완료!");
+      toast("Threads 글 3개 생성 완료!");
       loadThreads();
       setTab("threads");
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast((e as Error).message, "error"); }
     finally { setGenerating(false); }
   };
 
@@ -208,10 +210,10 @@ export default function ContentPage() {
                         method: "POST",
                         body: JSON.stringify({ type: reelForm.url ? "url" : "story", url: reelForm.url, story: reelForm.story, content_type: reelForm.contentType }),
                       });
-                      alert(data.message);
+                      toast(data.message);
                       setReelForm({ url: "", story: "", contentType: "알바 썰" });
                       loadContis();
-                    } catch (e) { alert((e as Error).message); }
+                    } catch (e) { toast((e as Error).message, "error"); }
                     finally { setReelRequesting(false); }
                   }} className="bg-purple-600 text-white px-5 py-2 rounded text-sm font-semibold hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500">
                     {reelRequesting ? "요청중..." : "콘티 요청"}
