@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>콘텐츠 대시보드</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: #0f0f13; color: #e0e0e0; }
+
+    .header { padding: 20px 32px; background: #1a1a24; border-bottom: 1px solid #2a2a3a; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 20px; color: #fff; }
+    .header .nav { display: flex; gap: 12px; }
+    .header .nav a { color: #888; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 14px; }
+    .header .nav a:hover, .header .nav a.active { color: #fff; background: #2a2a3a; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    /* Stats Cards */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 20px; }
+    .stat-card .label { font-size: 13px; color: #888; margin-bottom: 4px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; color: #fff; }
+    .stat-card .sub { font-size: 12px; color: #666; margin-top: 4px; }
+    .stat-card.today { border-color: #4f46e5; }
+    .stat-card.today .value { color: #818cf8; }
+
+    /* Sections */
+    .section { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; margin-bottom: 24px; }
+    .section-header { padding: 16px 20px; border-bottom: 1px solid #2a2a3a; display: flex; justify-content: space-between; align-items: center; }
+    .section-header h2 { font-size: 16px; color: #fff; }
+    .section-body { padding: 16px 20px; }
+
+    /* Generate Form */
+    .form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; }
+    .form-group label { font-size: 12px; color: #888; }
+    .form-group input, .form-group select { background: #0f0f13; border: 1px solid #2a2a3a; color: #e0e0e0; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #4f46e5; }
+
+    .btn { padding: 8px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #4f46e5; color: #fff; }
+    .btn-primary:hover { background: #4338ca; }
+    .btn-primary:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .btn-success { background: #059669; color: #fff; }
+    .btn-success:hover { background: #047857; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-sm { padding: 4px 12px; font-size: 12px; }
+    .btn-outline { background: transparent; border: 1px solid #2a2a3a; color: #888; }
+    .btn-outline:hover { border-color: #4f46e5; color: #fff; }
+
+    /* Draft Table */
+    .draft-table { width: 100%; border-collapse: collapse; }
+    .draft-table th { font-size: 12px; color: #888; text-align: left; padding: 8px; border-bottom: 1px solid #2a2a3a; }
+    .draft-table td { padding: 10px 8px; border-bottom: 1px solid #1f1f2f; font-size: 14px; }
+    .draft-table tr:hover { background: #1f1f2f; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-draft { background: #1e3a5f; color: #60a5fa; }
+    .badge-review { background: #3b2f1e; color: #fbbf24; }
+    .badge-edited { background: #1e3b2f; color: #34d399; }
+    .badge-published { background: #2d1e3b; color: #a78bfa; }
+
+    /* Preview Modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; width: 90%; max-width: 800px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+    .modal-header { padding: 16px 20px; border-bottom: 1px solid #2a2a3a; display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h3 { color: #fff; font-size: 16px; }
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .modal-body .preview-content { background: #fff; color: #333; padding: 24px; border-radius: 8px; line-height: 1.8; }
+    .modal-body .preview-content h2 { margin: 20px 0 10px; color: #111; }
+    .modal-body .preview-content h3 { margin: 16px 0 8px; color: #222; }
+    .modal-footer { padding: 12px 20px; border-top: 1px solid #2a2a3a; display: flex; gap: 8px; justify-content: flex-end; }
+
+    .meta-info { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+    .meta-item { font-size: 13px; color: #888; }
+    .meta-item span { color: #e0e0e0; }
+
+    .loading { text-align: center; padding: 40px; color: #666; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #333; border-top-color: #4f46e5; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty { text-align: center; padding: 40px; color: #555; font-size: 14px; }
+
+    /* Trading */
+    .pnl-pos { color: #ef4444; }
+    .pnl-neg { color: #3b82f6; }
+    .pnl-zero { color: #888; }
+    .holdings-table { width: 100%; border-collapse: collapse; }
+    .holdings-table th { font-size: 12px; color: #888; text-align: left; padding: 8px; border-bottom: 1px solid #2a2a3a; }
+    .holdings-table td { padding: 8px; border-bottom: 1px solid #1f1f2f; font-size: 13px; }
+    .holdings-table tr:hover { background: #1f1f2f; }
+    .history-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1f1f2f; font-size: 13px; }
+    .history-item .name { color: #e0e0e0; }
+    .history-item .date { color: #666; font-size: 12px; }
+    .target-bar { height: 4px; background: #2a2a3a; border-radius: 2px; margin-top: 4px; position: relative; }
+    .target-bar .fill { height: 100%; border-radius: 2px; position: absolute; left: 0; top: 0; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>콘텐츠 대시보드</h1>
+  <div class="nav">
+    <a href="/" class="">콘티 생성</a>
+    <a href="/dashboard" class="active">대시보드</a>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Stats -->
+  <div class="stats" id="stats">
+    <div class="loading"><span class="spinner"></span>로딩 중...</div>
+  </div>
+
+  <!-- Trading -->
+  <div class="section">
+    <div class="section-header">
+      <h2>자동매매 (KIS)</h2>
+      <button class="btn btn-sm btn-outline" onclick="loadTrading()">새로고침</button>
+    </div>
+    <div class="section-body" id="tradingBody">
+      <div class="loading"><span class="spinner"></span>매매 데이터 로딩 중...</div>
+    </div>
+  </div>
+
+  <!-- Generate -->
+  <div class="section">
+    <div class="section-header">
+      <h2>초안 생성</h2>
+    </div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>블로그 타입</label>
+          <select id="blogType">
+            <option value="dev">개발 블로그</option>
+            <option value="cpc">CPC 블로그 (청년/경제)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>메인 키워드</label>
+          <input type="text" id="keyword" placeholder="예: 프리랜서 종합소득세">
+        </div>
+        <div class="form-group" id="cpcGroup">
+          <label>CPC 카테고리</label>
+          <select id="cpcCategory">
+            <option value="청년 지원금">청년 지원금</option>
+            <option value="프리랜서 세금">프리랜서 세금</option>
+            <option value="N잡 수익">N잡 수익</option>
+            <option value="대출·금융상품">대출/금융상품</option>
+            <option value="보험">보험</option>
+            <option value="청년 주거">청년 주거</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:3">
+          <label>추가 컨텍스트 (선택)</label>
+          <input type="text" id="context" placeholder="방향성이나 강조할 내용">
+        </div>
+        <div class="form-group" style="flex:0; align-self: flex-end;">
+          <button class="btn btn-primary" id="generateBtn" onclick="generateDraft()">초안 생성</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drafts -->
+  <div class="section">
+    <div class="section-header">
+      <h2>초안 목록</h2>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm btn-outline" onclick="loadDrafts()">새로고침</button>
+        <select id="statusFilter" onchange="loadDrafts()" style="background:#0f0f13;border:1px solid #2a2a3a;color:#e0e0e0;padding:4px 8px;border-radius:4px;font-size:12px;">
+          <option value="">전체</option>
+          <option value="초안">초안</option>
+          <option value="수정완료">수정완료</option>
+          <option value="발행완료">발행완료</option>
+        </select>
+      </div>
+    </div>
+    <div class="section-body" id="draftsBody">
+      <div class="loading"><span class="spinner"></span>로딩 중...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-overlay" id="previewModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">미리보기</h3>
+      <button class="btn btn-sm btn-outline" onclick="closeModal()">닫기</button>
+    </div>
+    <div class="modal-body">
+      <div class="meta-info" id="modalMeta"></div>
+      <div class="preview-content" id="modalContent"></div>
+    </div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'API 오류');
+  }
+  return res.json();
+}
+
+// Toggle CPC category visibility
+document.getElementById('blogType').addEventListener('change', (e) => {
+  document.getElementById('cpcGroup').style.display = e.target.value === 'cpc' ? '' : 'none';
+});
+
+// Stats
+async function loadStats() {
+  try {
+    const data = await api('/api/dashboard');
+    document.getElementById('stats').innerHTML = `
+      <div class="stat-card today">
+        <div class="label">오늘 생성</div>
+        <div class="value">${data.today_drafts}</div>
+        <div class="sub">${data.today}</div>
+      </div>
+      <div class="stat-card today">
+        <div class="label">오늘 발행</div>
+        <div class="value">${data.today_published}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">전체 초안</div>
+        <div class="value">${data.total_drafts}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">전체 발행</div>
+        <div class="value">${data.total_published}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">개발 블로그</div>
+        <div class="value">${data.type_counts?.dev || 0}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">CPC 블로그</div>
+        <div class="value">${data.type_counts?.cpc || 0}</div>
+      </div>
+    `;
+  } catch (e) {
+    document.getElementById('stats').innerHTML = `<div class="stat-card"><div class="label">구글 시트 연동 필요</div><div class="sub">${e.message}</div></div>`;
+  }
+}
+
+// Drafts
+async function loadDrafts() {
+  const status = document.getElementById('statusFilter').value;
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+
+  try {
+    const data = await api(`/api/drafts?${params}`);
+    if (!data.drafts || data.drafts.length === 0) {
+      document.getElementById('draftsBody').innerHTML = '<div class="empty">초안이 없습니다. 위에서 생성해보세요.</div>';
+      return;
+    }
+
+    const badgeClass = { '초안': 'badge-draft', '리뷰중': 'badge-review', '수정완료': 'badge-edited', '발행완료': 'badge-published' };
+
+    let html = `<table class="draft-table">
+      <thead><tr><th>ID</th><th>날짜</th><th>타입</th><th>제목</th><th>키워드</th><th>상태</th><th>액션</th></tr></thead>
+      <tbody>`;
+
+    for (const d of data.drafts.reverse()) {
+      const bc = badgeClass[d['상태']] || 'badge-draft';
+      const type = d['블로그타입'] === 'dev' ? '개발' : 'CPC';
+      html += `<tr>
+        <td style="font-size:12px;color:#666;">${d['ID']}</td>
+        <td>${d['날짜']}</td>
+        <td>${type}</td>
+        <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d['제목']}</td>
+        <td style="font-size:12px;color:#888;">${d['키워드']}</td>
+        <td><span class="badge ${bc}">${d['상태']}</span></td>
+        <td>
+          <button class="btn btn-sm btn-outline" onclick="previewDraft('${d['ID']}')">미리보기</button>
+          ${d['상태'] !== '발행완료' ? `<button class="btn btn-sm btn-success" onclick="publishDraft('${d['ID']}')">발행</button>` : ''}
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('draftsBody').innerHTML = html;
+  } catch (e) {
+    document.getElementById('draftsBody').innerHTML = `<div class="empty">로딩 실패: ${e.message}</div>`;
+  }
+}
+
+// Generate
+async function generateDraft() {
+  const btn = document.getElementById('generateBtn');
+  const keyword = document.getElementById('keyword').value.trim();
+  if (!keyword) { alert('키워드를 입력하세요.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '생성 중...';
+
+  try {
+    const body = {
+      blog_type: document.getElementById('blogType').value,
+      keyword,
+      context: document.getElementById('context').value,
+      cpc_category: document.getElementById('cpcCategory').value,
+    };
+    const data = await api('/api/blog/generate', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    alert(`초안 생성 완료! (${data.draft_id})`);
+    document.getElementById('keyword').value = '';
+    document.getElementById('context').value = '';
+    loadStats();
+    loadDrafts();
+  } catch (e) {
+    alert('생성 실패: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '초안 생성';
+  }
+}
+
+// Preview
+async function previewDraft(id) {
+  try {
+    const data = await api(`/api/drafts/${id}`);
+    const d = data.draft;
+
+    document.getElementById('modalTitle').textContent = d['제목'];
+    document.getElementById('modalMeta').innerHTML = `
+      <div class="meta-item">ID: <span>${d['ID']}</span></div>
+      <div class="meta-item">타입: <span>${d['블로그타입'] === 'dev' ? '개발' : 'CPC'}</span></div>
+      <div class="meta-item">키워드: <span>${d['키워드']}</span></div>
+      <div class="meta-item">카테고리: <span>${d['카테고리']}</span></div>
+      <div class="meta-item">읽기시간: <span>${d['읽기시간(분)']}분</span></div>
+      <div class="meta-item">상태: <span>${d['상태']}</span></div>
+    `;
+    document.getElementById('modalContent').innerHTML = d['HTML본문'] || '<p>본문이 없습니다.</p>';
+
+    const isPublishable = d['상태'] !== '발행완료';
+    document.getElementById('modalFooter').innerHTML = `
+      ${isPublishable ? `
+        <button class="btn btn-sm btn-outline" onclick="updateStatus('${d['ID']}', '수정완료')">수정완료 표시</button>
+        <button class="btn btn-sm btn-success" onclick="publishDraft('${d['ID']}')">티스토리 발행</button>
+      ` : '<span style="color:#666;font-size:13px;">이미 발행된 글입니다.</span>'}
+      <button class="btn btn-sm btn-outline" onclick="closeModal()">닫기</button>
+    `;
+
+    document.getElementById('previewModal').classList.add('active');
+  } catch (e) {
+    alert('로딩 실패: ' + e.message);
+  }
+}
+
+function closeModal() {
+  document.getElementById('previewModal').classList.remove('active');
+}
+
+async function updateStatus(id, status) {
+  try {
+    await api(`/api/drafts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    alert(`상태 변경: ${status}`);
+    closeModal();
+    loadDrafts();
+  } catch (e) {
+    alert('실패: ' + e.message);
+  }
+}
+
+async function publishDraft(id) {
+  const vis = confirm('공개 발행하시겠습니까?\n\nOK = 공개(3)\nCancel = 비공개(0)');
+  const visibility = vis ? 3 : 0;
+
+  try {
+    const data = await api('/api/publish', {
+      method: 'POST',
+      body: JSON.stringify({ draft_id: id, visibility }),
+    });
+    alert(data.message);
+    closeModal();
+    loadStats();
+    loadDrafts();
+  } catch (e) {
+    alert('발행 실패: ' + e.message);
+  }
+}
+
+// Trading
+function fmt(n) {
+  if (n === undefined || n === null) return '0';
+  return Number(n).toLocaleString('ko-KR');
+}
+function pnlClass(n) { return n > 0 ? 'pnl-pos' : n < 0 ? 'pnl-neg' : 'pnl-zero'; }
+function pnlSign(n) { return n > 0 ? '+' : ''; }
+
+async function loadTrading() {
+  try {
+    const data = await api('/api/trading');
+    const b = data.balance || {};
+    const holdings = b.holdings || [];
+
+    // Trading stats row
+    let statsHtml = `
+      <div class="stats" style="margin-bottom:16px;">
+        <div class="stat-card">
+          <div class="label">총 평가금액</div>
+          <div class="value" style="font-size:22px;">${fmt(b.total_eval)}원</div>
+          <div class="sub">예수금: ${fmt(b.cash)}원</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">미실현 손익</div>
+          <div class="value ${pnlClass(b.total_pnl)}" style="font-size:22px;">${pnlSign(b.total_pnl)}${fmt(b.total_pnl)}원</div>
+          <div class="sub">매입: ${fmt(b.total_buy)}원</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">오늘 실현손익</div>
+          <div class="value ${pnlClass(data.today_pnl)}" style="font-size:22px;">${pnlSign(data.today_pnl)}${fmt(data.today_pnl)}원</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">이번주 실현손익</div>
+          <div class="value ${pnlClass(data.week_pnl)}" style="font-size:22px;">${pnlSign(data.week_pnl)}${fmt(data.week_pnl)}원</div>
+          <div class="sub">누적: ${pnlSign(data.total_realized)}${fmt(data.total_realized)}원</div>
+        </div>
+      </div>`;
+
+    // Holdings table
+    let holdingsHtml = '';
+    if (holdings.length > 0) {
+      holdingsHtml = `<table class="holdings-table">
+        <thead><tr><th>종목</th><th>수량</th><th>매수가</th><th>현재가</th><th>수익률</th><th>손익</th><th>손절/목표</th></tr></thead>
+        <tbody>`;
+      for (const h of holdings) {
+        const pct = h.pnl_pct || 0;
+        holdingsHtml += `<tr>
+          <td><strong>${h.name}</strong><br><span style="color:#666;font-size:11px;">${h.code} | ${h.buy_date || ''}</span></td>
+          <td>${fmt(h.qty)}주</td>
+          <td>${fmt(h.buy_price)}원</td>
+          <td>${fmt(h.cur_price)}원</td>
+          <td class="${pnlClass(pct)}" style="font-weight:600;">${pnlSign(pct)}${pct.toFixed(2)}%</td>
+          <td class="${pnlClass(h.pnl)}">${pnlSign(h.pnl)}${fmt(h.pnl)}원</td>
+          <td style="font-size:11px;color:#666;">
+            ${h.atr_stop ? `손절: ${fmt(h.atr_stop)}` : ''}
+            ${h.atr_target ? `<br>목표: ${fmt(h.atr_target)}` : ''}
+          </td>
+        </tr>`;
+      }
+      holdingsHtml += '</tbody></table>';
+    } else {
+      holdingsHtml = '<div class="empty">보유 종목이 없습니다.</div>';
+    }
+
+    // Trade history
+    const history = (data.history || []).slice(-10).reverse();
+    let historyHtml = '';
+    if (history.length > 0) {
+      historyHtml = '<div style="margin-top:16px;"><strong style="font-size:13px;color:#888;">최근 매매 이력</strong>';
+      for (const t of history) {
+        historyHtml += `<div class="history-item">
+          <div><span class="name">${t.name || t.code}</span> <span class="date">${t.date}</span></div>
+          <div class="${pnlClass(t.pnl)}">${pnlSign(t.pnl)}${fmt(t.pnl)}원 (${pnlSign(t.pnl_pct)}${t.pnl_pct}%)</div>
+        </div>`;
+      }
+      historyHtml += '</div>';
+    }
+
+    document.getElementById('tradingBody').innerHTML = statsHtml + holdingsHtml + historyHtml;
+
+    // Also update main stats with trading data
+    updateStatsWithTrading(data);
+  } catch (e) {
+    document.getElementById('tradingBody').innerHTML = `<div class="empty">매매 데이터 로딩 실패: ${e.message}<br><span style="font-size:12px;color:#555;">KIS API 설정을 확인하세요.</span></div>`;
+  }
+}
+
+function updateStatsWithTrading(tradingData) {
+  // Add trading summary to the main stats if loaded
+  const statsEl = document.getElementById('stats');
+  const existingCards = statsEl.querySelectorAll('.stat-card');
+  if (existingCards.length > 0) {
+    const tradingCard = document.createElement('div');
+    tradingCard.className = 'stat-card';
+    tradingCard.innerHTML = `
+      <div class="label">매매 누적수익</div>
+      <div class="value ${pnlClass(tradingData.total_realized)}" style="font-size:22px;">${pnlSign(tradingData.total_realized)}${fmt(tradingData.total_realized)}</div>
+      <div class="sub">미실현: ${pnlSign(tradingData.unrealized_pnl)}${fmt(tradingData.unrealized_pnl)}</div>
+    `;
+    statsEl.appendChild(tradingCard);
+  }
+}
+
+// Init
+loadStats();
+loadDrafts();
+loadTrading();
+</script>
+</body>
+</html>

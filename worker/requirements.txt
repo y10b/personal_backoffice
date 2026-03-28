@@ -1,0 +1,7 @@
+flask
+google-genai
+gspread
+google-auth
+python-dotenv
+yt-dlp
+httpx

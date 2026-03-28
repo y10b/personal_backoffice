@@ -1,0 +1,10 @@
+.env
+.env.local
+credentials.json
+downloads/
+__pycache__/
+*.pyc
+.pytest_cache/
+web/node_modules/
+web/.next/
+.claude/

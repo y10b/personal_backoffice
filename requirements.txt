@@ -1,0 +1,9 @@
+google-genai
+yt-dlp
+pydantic
+python-dotenv
+fastapi
+uvicorn
+httpx
+gspread
+google-auth
