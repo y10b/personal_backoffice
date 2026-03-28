@@ -143,7 +143,8 @@ export async function getDashboardStats() {
   const today = new Date().toISOString().slice(0, 10);
 
   const todayDrafts = draftRows.filter((r) => r[1] === today).length;
-  const todayPublished = pubRows.filter((r) => (r[2] || "").startsWith(today)).length;
+  // 초안 시트에서 오늘 날짜 + 발행완료 상태인 것을 카운트 (수동 발행 포함)
+  const todayPublished = draftRows.filter((r) => r[1] === today && r[12] === "발행완료").length;
 
   const statusCounts: Record<string, number> = {};
   const typeCounts: Record<string, number> = { dev: 0, cpc: 0 };
@@ -156,7 +157,7 @@ export async function getDashboardStats() {
   return {
     today,
     total_drafts: draftRows.length,
-    total_published: pubRows.length,
+    total_published: draftRows.filter((r) => r[12] === "발행완료").length,
     today_drafts: todayDrafts,
     today_published: todayPublished,
     status_counts: statusCounts,
