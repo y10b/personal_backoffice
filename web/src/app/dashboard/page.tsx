@@ -107,6 +107,45 @@ export default function DashboardPage() {
     toast("태그 복사 완료!");
   };
 
+  const downloadCover = async (draft: Draft) => {
+    try {
+      const res = await fetch("/api/cover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blog_type: draft["블로그타입"],
+          title: draft["제목"],
+          keywords: (draft["키워드"] || "").split(",").map(k => k.trim()),
+          date: draft["날짜"],
+          cpc_category: draft["CPC카테고리"],
+        }),
+      });
+      const html = await res.text();
+
+      // iframe에 렌더링 후 html2canvas로 캡처
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;left:-9999px;width:800px;height:420px;border:none;";
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentDocument!;
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      // 폰트 로딩 대기
+      await new Promise(r => setTimeout(r, 1500));
+
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(doc.body, { width: 800, height: 420, scale: 2, useCORS: true });
+      document.body.removeChild(iframe);
+
+      const link = document.createElement("a");
+      link.download = `cover_${draft["ID"]}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      toast("표지 다운로드 완료!");
+    } catch (e) { toast("표지 생성 실패: " + (e as Error).message, "error"); }
+  };
 
   const updateStatus = async (id: string, s: string) => {
     try {
@@ -308,12 +347,21 @@ export default function DashboardPage() {
               <div className="text-xs text-gray-400 bg-[#0f0f13] p-3 rounded mb-4">
                 <span className="text-gray-600">메타 디스크립션:</span> {preview["메타디스크립션"]}
               </div>
+              {/* 표지 미리보기 */}
+              <CoverPreview
+                blogType={preview["블로그타입"]}
+                title={preview["제목"]}
+                keywords={preview["키워드"]}
+                date={preview["날짜"]}
+                cpcCategory={preview["CPC카테고리"]}
+              />
               <div className="bg-white text-gray-800 p-6 rounded-lg prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: preview["HTML본문"] || "" }} />
             </div>
             <div className="px-5 py-3 border-t border-[#2a2a3a] flex gap-2 justify-between">
               <div className="flex gap-2">
                 <button onClick={() => copyTitle(preview)} className="text-xs border border-[#2a2a3a] text-gray-400 px-3 py-1.5 rounded hover:text-white">제목 복사</button>
                 <button onClick={() => copyTags(preview)} className="text-xs border border-[#2a2a3a] text-gray-400 px-3 py-1.5 rounded hover:text-white">태그 복사</button>
+                <button onClick={() => downloadCover(preview)} className="text-xs text-amber-400 border border-amber-800 px-3 py-1.5 rounded hover:bg-amber-900">표지 다운로드</button>
                 <button disabled={threadGenerating} onClick={async () => {
                   setThreadGenerating(true);
                   try {
@@ -346,6 +394,44 @@ function Card({ label, value, accent }: { label: string; value: string; accent?:
     <div className={`bg-[#1a1a24] border rounded-xl p-5 ${accent ? "border-indigo-600" : "border-[#2a2a3a]"}`}>
       <div className="text-xs text-gray-500 mb-1">{label}</div>
       <div className={`text-2xl font-bold ${accent ? "text-indigo-400" : "text-white"}`}>{value}</div>
+    </div>
+  );
+}
+
+function CoverPreview({ blogType, title, keywords, date, cpcCategory }: {
+  blogType: string; title: string; keywords: string; date: string; cpcCategory: string;
+}) {
+  const [coverHtml, setCoverHtml] = useState("");
+
+  useEffect(() => {
+    if (!title) return;
+    fetch("/api/cover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        blog_type: blogType,
+        title,
+        keywords: (keywords || "").split(",").map(k => k.trim()),
+        date,
+        cpc_category: cpcCategory,
+      }),
+    })
+      .then(r => r.text())
+      .then(setCoverHtml)
+      .catch(() => {});
+  }, [blogType, title, keywords, date, cpcCategory]);
+
+  if (!coverHtml) return null;
+
+  return (
+    <div className="mb-4">
+      <p className="text-xs text-gray-500 mb-2">표지 미리보기</p>
+      <div className="rounded-lg overflow-hidden border border-[#2a2a3a]" style={{ width: "100%", aspectRatio: "800/420" }}>
+        <iframe
+          srcDoc={coverHtml}
+          style={{ width: "800px", height: "420px", transform: "scale(0.5)", transformOrigin: "top left", border: "none" }}
+        />
+      </div>
     </div>
   );
 }
