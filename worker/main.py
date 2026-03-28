@@ -254,14 +254,16 @@ def daily_drafts():
             # 글 생성
             if blog_type == "dev":
                 blog_prompt = f"""개발 블로그 전문 작가. SEO 최적화 글 작성.
+중요: 현재 2026년. 실제 존재하는 정확한 정보만 사용. 추측/지어내기 금지. 버전/명령어/API는 실제 것만.
 키워드: {keyword}. 톤: 친근한 ~해요체. 독자: 주니어 개발자.
-H2 3~5개, 1500~2500자, 마지막에 CTA.
+H2 3~5개, 1500~2500자, 제목에 2026 포함 권장, 마지막에 CTA.
 JSON: {{"title":"","meta_description":"","keywords":[],"slug":"","category":"","tags":[],"html_content":"","images":[],"estimated_reading_min":5,"cpc_category":""}}
 JSON만 출력."""
             else:
                 blog_prompt = f"""청년 N잡러 경제 블로그 작가. SEO 최적화 정보성 글.
+중요: 현재 2026년. 실제 존재하는 정확한 정보만 사용. 지원금/금리/조건은 2026년 실제 데이터 기준. 없는 제도 지어내지 마. 불확실하면 "확인 필요" 표시. 면책조항: "2026년 기준 정보이며, 정확한 내용은 관련 기관에 확인하세요."
 키워드: {keyword}. 독자: 20~30대 청년, 프리랜서.
-H2 4~6개, 2000~3000자, 비교표/리스트 활용, 면책 조항 포함.
+H2 4~6개, 2000~3000자, 비교표/리스트 활용, 제목에 2026 포함 권장.
 JSON: {{"title":"","meta_description":"","keywords":[],"slug":"","category":"","tags":[],"html_content":"","images":[],"estimated_reading_min":7,"cpc_category":"청년 지원금"}}
 JSON만 출력."""
 
