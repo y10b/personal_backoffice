@@ -312,9 +312,10 @@ def assemble():
             blob_name = f"videos/{conti_id or 'temp'}.mp4"
             blob = bucket.blob(blob_name)
             blob.upload_from_filename(str(output_path), content_type="video/mp4")
-            blob.make_public()
-            video_url = blob.public_url
-            print(f"[assemble] 업로드 완료: {video_url}")
+            # signed URL (7일 유효)
+            from datetime import timedelta
+            video_url = blob.generate_signed_url(expiration=timedelta(days=7))
+            print(f"[assemble] 업로드 완료: {blob_name}")
 
         # 정리
         shutil.rmtree(work_dir, ignore_errors=True)
