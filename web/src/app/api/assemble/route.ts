@@ -24,6 +24,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: data.error || "조립 실패" }, { status: 500 });
     }
 
+    // download_id가 있으면 다운로드 URL 생성
+    if (data.download_id) {
+      data.video_url = `${workerUrl}/download/${data.download_id}`;
+    }
     return NextResponse.json({ success: true, ...data });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

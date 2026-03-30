@@ -302,33 +302,33 @@ def assemble():
         assemble_video(json.dumps(conti_data), images_dir, tts_dir, output_path)
         print(f"[assemble] 영상 조립 완료: {output_path}")
 
-        # 4) GCS에 업로드
-        video_url = ""
-        bucket_name = os.getenv("KIS_POSITIONS_BUCKET", "")
-        if bucket_name and output_path.exists():
-            print(f"[assemble] GCS 업로드 중...")
-            gcs_client = gcs.Client()
-            bucket = gcs_client.bucket(bucket_name)
-            blob_name = f"videos/{conti_id or 'temp'}.mp4"
-            blob = bucket.blob(blob_name)
-            blob.upload_from_filename(str(output_path), content_type="video/mp4")
-            # signed URL (7일 유효)
-            from datetime import timedelta
-            video_url = blob.generate_signed_url(expiration=timedelta(days=7))
-            print(f"[assemble] 업로드 완료: {blob_name}")
-
-        # 정리
+        # 4) 영상 파일을 /tmp에 유지하고 다운로드 ID 반환
+        import uuid
+        download_id = str(uuid.uuid4())[:8]
+        final_path = Path(f"/tmp/video_{download_id}.mp4")
+        shutil.copy2(output_path, final_path)
         shutil.rmtree(work_dir, ignore_errors=True)
+        print(f"[assemble] 완료: {final_path}")
 
         return {
             "message": f"영상 조립 완료! TTS {tts_count}개, 씬 {len(scenes)}개",
-            "video_url": video_url,
+            "download_id": download_id,
             "conti_id": conti_id,
         }, 200
 
     except Exception as e:
         print(f"[assemble] 에러: {traceback.format_exc()}")
         return {"error": f"조립 실패: {str(e)}"}, 500
+
+
+@app.route("/download/<download_id>", methods=["GET"])
+def download_video_file(download_id):
+    """조립된 영상 다운로드."""
+    from flask import send_file
+    path = Path(f"/tmp/video_{download_id}.mp4")
+    if not path.exists():
+        return {"error": "파일을 찾을 수 없습니다. 다시 조립해주세요."}, 404
+    return send_file(str(path), mimetype="video/mp4", as_attachment=True, download_name=f"reel_{download_id}.mp4")
 
 
 @app.route("/daily-drafts", methods=["POST", "GET"])
