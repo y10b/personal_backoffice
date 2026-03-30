@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   const authErr = await requireAuth();
   if (authErr) return authErr;
 
-  const { conti_id, conti_json, voice } = await req.json();
+  const { conti_id, conti_json, voice, reassemble } = await req.json();
 
   const workerUrl = process.env.REEL_WORKER_URL;
   if (!workerUrl) {
@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(`${workerUrl}/assemble`, {
+    const endpoint = reassemble ? "/reassemble" : "/assemble";
+    const res = await fetch(`${workerUrl}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conti_id, conti_json, voice }),
@@ -24,7 +25,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: data.error || "조립 실패" }, { status: 500 });
     }
 
-    // download_id가 있으면 다운로드 URL 생성
     if (data.download_id) {
       data.video_url = `${workerUrl}/download/${data.download_id}`;
     }

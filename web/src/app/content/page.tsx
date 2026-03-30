@@ -298,7 +298,7 @@ export default function ContentPage() {
                 {contiDetail["원본URL"] && <span>URL: {contiDetail["원본URL"]}</span>}
               </div>
 
-              <ContiScenes json={contiDetail["콘티JSON"]} />
+              <ContiScenes json={contiDetail["콘티JSON"]} contiId={contiDetail["ID"]} />
 
               {contiDetail["메모"] && (
                 <div className="mt-4 text-xs text-gray-400 bg-[#0f0f13] p-3 rounded">
@@ -326,7 +326,20 @@ export default function ContentPage() {
                       toast(data.message);
                     }
                   } catch (e) { toast((e as Error).message, "error"); }
-                }} className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded hover:bg-purple-700 font-semibold">영상 조립</button>
+                }} className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded hover:bg-purple-700 font-semibold">초벌 조립</button>
+                <button onClick={async () => {
+                  toast("재조립 중... (업로드한 파일 반영)", "info");
+                  try {
+                    const data = await api("/api/assemble", {
+                      method: "POST",
+                      body: JSON.stringify({ conti_id: contiDetail["ID"], conti_json: contiDetail["콘티JSON"], reassemble: true }),
+                    });
+                    if (data.video_url) {
+                      toast("재조립 완료!");
+                      window.open(data.video_url, "_blank");
+                    } else { toast(data.message); }
+                  } catch (e) { toast((e as Error).message, "error"); }
+                }} className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded hover:bg-emerald-700 font-semibold">재조립 (파일 반영)</button>
               </div>
               <div className="flex gap-2">
                 {["초안", "촬영중", "편집중", "발행완료"].filter(s => s !== contiDetail["상태"]).map(s => (
@@ -348,10 +361,23 @@ export default function ContentPage() {
   );
 }
 
-function ContiScenes({ json }: { json: string }) {
+function ContiScenes({ json, contiId }: { json: string; contiId: string }) {
+  const { toast } = useToast();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let data: any;
   try { data = JSON.parse(json); } catch { return <pre className="text-xs text-gray-400 bg-[#0f0f13] p-4 rounded overflow-x-auto whitespace-pre-wrap">{json}</pre>; }
+
+  const uploadFile = async (sceneNum: number, file: File) => {
+    const formData = new FormData();
+    formData.append("conti_id", contiId);
+    formData.append("scene_number", String(sceneNum));
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/scenes", { method: "POST", body: formData });
+      const result = await res.json();
+      toast(result.message || "업로드 완료!");
+    } catch (e) { toast("업로드 실패: " + (e as Error).message, "error"); }
+  };
 
   const scenes = data.scenes || [];
   const typeLabel: Record<string, string> = { ai_video: "AI 영상", text_overlay: "텍스트", screen_recording: "화면녹화" };
@@ -412,6 +438,20 @@ function ContiScenes({ json }: { json: string }) {
           {s.capcut_notes && (
             <div className="text-xs text-gray-500">CapCut: {String(s.capcut_notes)}</div>
           )}
+          {/* 씬 파일 업로드 */}
+          <div className="mt-2 flex items-center gap-2">
+            <label className={`text-xs px-3 py-1.5 rounded cursor-pointer ${s.scene_type === "ai_video" ? "bg-amber-700 text-white hover:bg-amber-600" : "bg-[#1a1a24] text-gray-400 hover:text-white border border-[#2a2a3a]"}`}>
+              {s.scene_type === "ai_video" ? "영상 업로드" : "파일 교체"}
+              <input type="file" accept="video/*,image/*" className="hidden" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadFile(s.scene_number, file);
+                e.target.value = "";
+              }} />
+            </label>
+            {s.scene_type === "ai_video" && (
+              <span className="text-xs text-amber-400">Kling/Hailuo에서 생성한 영상을 여기에 업로드</span>
+            )}
+          </div>
         </div>
       ))}
 
@@ -422,6 +462,36 @@ function ContiScenes({ json }: { json: string }) {
           <div className="text-sm text-gray-300">{String(data.editing_summary)}</div>
         </div>
       )}
+
+      {/* 릴스 발행 가이드 */}
+      <div className="bg-[#0f0f13] p-4 rounded">
+        <div className="text-xs text-gray-500 mb-2">릴스 발행 가이드</div>
+        <div className="space-y-2">
+          <div>
+            <span className="text-xs text-gray-500">추천 설명:</span>
+            <p className="text-sm text-gray-300 mt-1 cursor-pointer hover:text-white" onClick={async () => {
+              const desc = `${data.title}\n\n#숏폼 #릴스 #${(data.bgm_keywords || []).join(" #")}`;
+              await navigator.clipboard.writeText(desc);
+              toast("설명 복사 완료!");
+            }}>
+              {data.title}<br/>
+              <span className="text-indigo-400">
+                {scenes.slice(0, 2).map((s: Record<string, unknown>) => String(s.subtitle_text || "")).filter(Boolean).join(" → ")}...
+              </span>
+            </p>
+          </div>
+          <div>
+            <span className="text-xs text-gray-500">추천 해시태그 (클릭하면 복사):</span>
+            <p className="text-sm text-pink-400 mt-1 cursor-pointer hover:text-pink-300" onClick={async () => {
+              const tags = `#숏폼 #릴스 #shorts #${String(data.title || "").replace(/\s+/g, "")} ${(data.bgm_keywords || []).map((k: string) => `#${k}`).join(" ")} ${scenes.flatMap((s: Record<string, unknown>) => (s.emphasis_keywords as string[]) || []).slice(0, 5).map((k: string) => `#${k}`).join(" ")}`;
+              await navigator.clipboard.writeText(tags);
+              toast("해시태그 복사 완료!");
+            }}>
+              #숏폼 #릴스 #shorts {(data.bgm_keywords || []).map((k: string) => `#${k}`).join(" ")} {scenes.flatMap((s: Record<string, unknown>) => (s.emphasis_keywords as string[]) || []).slice(0, 5).map((k: string) => `#${k}`).join(" ")}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

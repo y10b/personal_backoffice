@@ -321,6 +321,170 @@ def assemble():
         return {"error": f"조립 실패: {str(e)}"}, 500
 
 
+@app.route("/scenes/<conti_id>", methods=["GET"])
+def get_scenes_status(conti_id):
+    """씬별 파일 상태 조회."""
+    scene_dir = Path(f"/tmp/scenes_{conti_id}")
+    scenes = []
+    if scene_dir.exists():
+        for f in sorted(scene_dir.iterdir()):
+            scenes.append({"name": f.name, "size": f.stat().st_size, "type": f.suffix})
+    return {"conti_id": conti_id, "files": scenes}, 200
+
+
+@app.route("/scenes/<conti_id>/upload", methods=["POST"])
+def upload_scene_file(conti_id):
+    """씬별 파일 업로드 (이미지/영상)."""
+    scene_num = flask_request.form.get("scene_number", "1")
+    file = flask_request.files.get("file")
+    if not file:
+        return {"error": "파일이 없습니다"}, 400
+
+    scene_dir = Path(f"/tmp/scenes_{conti_id}")
+    scene_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = Path(file.filename).suffix or ".mp4"
+    save_path = scene_dir / f"scene_{int(scene_num):02d}{ext}"
+    file.save(str(save_path))
+
+    return {"message": f"씬 {scene_num} 업로드 완료", "path": str(save_path), "size": save_path.stat().st_size}, 200
+
+
+@app.route("/scenes/<conti_id>/preview/<int:scene_num>", methods=["GET"])
+def preview_scene_file(conti_id, scene_num):
+    """업로드된 씬 파일 미리보기."""
+    from flask import send_file
+    scene_dir = Path(f"/tmp/scenes_{conti_id}")
+    for ext in [".mp4", ".webm", ".mov", ".png", ".jpg", ".jpeg", ".gif"]:
+        path = scene_dir / f"scene_{scene_num:02d}{ext}"
+        if path.exists():
+            mime = "video/mp4" if ext in [".mp4", ".webm", ".mov"] else f"image/{ext[1:]}"
+            return send_file(str(path), mimetype=mime)
+    return {"error": "파일 없음"}, 404
+
+
+@app.route("/reassemble", methods=["POST"])
+def reassemble():
+    """업로드된 씬 파일로 재조립."""
+    import traceback
+    import shutil
+
+    try:
+        from tts import generate_all_scene_tts
+        from scene_renderer import render_all_scenes
+        from assembler import assemble_scene, concat_scenes
+        from mutagen.mp3 import MP3
+
+        data = flask_request.json or {}
+        conti_id = data.get("conti_id", "")
+        conti_json = data.get("conti_json", "")
+        voice = data.get("voice", "ko-KR-SunHiNeural")
+
+        if not conti_json:
+            ss = get_sheets()
+            ws = ss.worksheet("릴스-콘티")
+            for r in ws.get_all_records():
+                if r.get("ID") == conti_id:
+                    conti_json = str(r.get("콘티JSON", ""))
+                    break
+
+        if not conti_json:
+            return {"error": "콘티를 찾을 수 없습니다"}, 404
+
+        conti_data = json.loads(clean_json(conti_json))
+        scenes = conti_data.get("scenes", [])
+
+        scene_dir = Path(f"/tmp/scenes_{conti_id}")
+        work_dir = Path(f"/tmp/reassemble_{conti_id}")
+        if work_dir.exists():
+            shutil.rmtree(work_dir)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        tts_dir = work_dir / "tts"
+        default_images_dir = work_dir / "default_images"
+
+        # TTS 생성
+        tts_paths = generate_all_scene_tts(scenes, tts_dir, voice)
+
+        # 기본 이미지 생성 (업로드 안 된 씬용)
+        render_all_scenes(scenes, default_images_dir)
+
+        # 씬별 영상 클립 생성
+        scene_videos = []
+        for scene in scenes:
+            num = scene.get("scene_number", 0)
+            start = scene.get("start_sec", 0)
+            end = scene.get("end_sec", 3)
+            duration = end - start
+
+            # 업로드된 파일 확인
+            uploaded = None
+            if scene_dir.exists():
+                for ext in [".mp4", ".webm", ".mov", ".png", ".jpg", ".jpeg", ".gif"]:
+                    candidate = scene_dir / f"scene_{num:02d}{ext}"
+                    if candidate.exists():
+                        uploaded = candidate
+                        break
+
+            # TTS
+            tts_path = tts_dir / f"scene_{num:02d}.mp3"
+            if not tts_path.exists():
+                tts_path = None
+
+            scene_output = work_dir / f"clip_{num:02d}.mp4"
+
+            if uploaded and uploaded.suffix in [".mp4", ".webm", ".mov"]:
+                # 업로드된 영상 + TTS 합성
+                import subprocess
+                if tts_path:
+                    cmd = ["ffmpeg", "-y", "-i", str(uploaded), "-i", str(tts_path),
+                           "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                           "-pix_fmt", "yuv420p", "-shortest", str(scene_output)]
+                else:
+                    cmd = ["ffmpeg", "-y", "-i", str(uploaded),
+                           "-c:v", "libx264", "-pix_fmt", "yuv420p", str(scene_output)]
+                subprocess.run(cmd, capture_output=True)
+            elif uploaded and uploaded.suffix in [".png", ".jpg", ".jpeg", ".gif"]:
+                # 업로드된 이미지 + TTS
+                assemble_scene(uploaded, tts_path, duration, scene_output)
+            else:
+                # 기본 생성 이미지 사용
+                default_img = None
+                for ext in [".png"]:
+                    for prefix in [f"scene_{num:02d}", f"scene_{num:02d}_placeholder"]:
+                        candidate = default_images_dir / f"{prefix}{ext}"
+                        if candidate.exists():
+                            default_img = candidate
+                            break
+                if default_img:
+                    assemble_scene(default_img, tts_path, duration, scene_output)
+
+            if scene_output.exists():
+                scene_videos.append(scene_output)
+
+        if not scene_videos:
+            return {"error": "조립할 씬이 없습니다"}, 400
+
+        # 이어붙이기
+        import uuid
+        download_id = str(uuid.uuid4())[:8]
+        final_path = Path(f"/tmp/video_{download_id}.mp4")
+        concat_scenes(scene_videos, final_path)
+
+        # 작업 파일 정리
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+        return {
+            "message": f"재조립 완료! {len(scene_videos)}개 씬",
+            "download_id": download_id,
+            "conti_id": conti_id,
+        }, 200
+
+    except Exception as e:
+        import traceback
+        print(f"[reassemble] 에러: {traceback.format_exc()}", flush=True)
+        return {"error": f"재조립 실패: {str(e)}"}, 500
+
+
 @app.route("/download/<download_id>", methods=["GET"])
 def download_video_file(download_id):
     """조립된 영상 다운로드."""
