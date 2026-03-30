@@ -46,6 +46,7 @@ export default function ContentPage() {
   const [generating, setGenerating] = useState(false);
   const [reelForm, setReelForm] = useState({ url: "", story: "", contentType: "알바 썰" });
   const [reelRequesting, setReelRequesting] = useState(false);
+  const [contiDetail, setContiDetail] = useState<ContiItem | null>(null);
 
   const loadCalendar = useCallback(async () => {
     try { const d = await api(`/api/calendar?month=${month}`); setCalendar(d.items || []); } catch {}
@@ -231,7 +232,9 @@ export default function ContentPage() {
                     <tr key={c["ID"]} className="border-b border-[#1f1f2f] hover:bg-[#1f1f2f]">
                       <td className="p-2 text-xs text-gray-600">{c["ID"]}</td>
                       <td className="p-2">{c["날짜"]}</td>
-                      <td className="p-2">{c["제목"]}</td>
+                      <td className="p-2">
+                        <button onClick={() => setContiDetail(c)} className="text-left text-purple-400 hover:text-purple-300 hover:underline">{c["제목"]}</button>
+                      </td>
                       <td className="p-2 text-xs text-gray-400">{c["유형"]}</td>
                       <td className="p-2 text-xs">{c["총길이(초)"]}초</td>
                       <td className={`p-2 text-xs font-semibold ${STATUS_COLORS[c["상태"]] || ""}`}>{c["상태"]}</td>
@@ -277,6 +280,133 @@ export default function ContentPage() {
           </section>
         )}
       </div>
+
+      {/* Conti Detail Modal */}
+      {contiDetail && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center" onClick={() => setContiDetail(null)}>
+          <div className="bg-[#1a1a24] border border-[#2a2a3a] rounded-xl w-[90%] max-w-[800px] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-[#2a2a3a] flex justify-between items-center">
+              <h3 className="text-white font-semibold">{contiDetail["제목"]}</h3>
+              <button onClick={() => setContiDetail(null)} className="text-gray-400 hover:text-white text-sm">닫기</button>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1">
+              <div className="flex gap-4 text-xs text-gray-500 mb-4 flex-wrap">
+                <span>ID: {contiDetail["ID"]}</span>
+                <span>유형: {contiDetail["유형"]}</span>
+                <span>길이: {contiDetail["총길이(초)"]}초</span>
+                <span className={STATUS_COLORS[contiDetail["상태"]] || ""}>{contiDetail["상태"]}</span>
+                {contiDetail["원본URL"] && <span>URL: {contiDetail["원본URL"]}</span>}
+              </div>
+
+              <ContiScenes json={contiDetail["콘티JSON"]} />
+
+              {contiDetail["메모"] && (
+                <div className="mt-4 text-xs text-gray-400 bg-[#0f0f13] p-3 rounded">
+                  <span className="text-gray-600">메모:</span> {contiDetail["메모"]}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t border-[#2a2a3a] flex gap-2 justify-between">
+              <div className="flex gap-2">
+                <button onClick={async () => {
+                  await navigator.clipboard.writeText(contiDetail["콘티JSON"] || "");
+                  toast("콘티 JSON 복사 완료!");
+                }} className="text-xs border border-[#2a2a3a] text-gray-400 px-3 py-1.5 rounded hover:text-white">JSON 복사</button>
+              </div>
+              <div className="flex gap-2">
+                {["초안", "촬영중", "편집중", "발행완료"].filter(s => s !== contiDetail["상태"]).map(s => (
+                  <button key={s} onClick={async () => {
+                    try {
+                      await api("/api/contis", { method: "PATCH", body: JSON.stringify({ id: contiDetail["ID"], status: s }) });
+                      toast(`상태 변경: ${s}`);
+                      setContiDetail(null);
+                      loadContis();
+                    } catch (e) { toast((e as Error).message, "error"); }
+                  }} className={`text-xs px-3 py-1.5 rounded ${STATUS_COLORS[s] || "text-gray-400"} border border-[#2a2a3a] hover:bg-[#2a2a3a]`}>{s}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContiScenes({ json }: { json: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let data: any;
+  try { data = JSON.parse(json); } catch { return <pre className="text-xs text-gray-400 bg-[#0f0f13] p-4 rounded overflow-x-auto whitespace-pre-wrap">{json}</pre>; }
+
+  const scenes = data.scenes || [];
+  const typeLabel: Record<string, string> = { ai_video: "AI 영상", text_overlay: "텍스트", screen_recording: "화면녹화" };
+
+  return (
+    <div className="space-y-3">
+      {/* 요약 */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-[#0f0f13] p-3 rounded text-center">
+          <div className="text-xs text-gray-500">총 길이</div>
+          <div className="text-white font-bold">{String(data.total_duration_sec)}초</div>
+        </div>
+        <div className="bg-[#0f0f13] p-3 rounded text-center">
+          <div className="text-xs text-gray-500">씬 수</div>
+          <div className="text-white font-bold">{scenes.length}개</div>
+        </div>
+        <div className="bg-[#0f0f13] p-3 rounded text-center">
+          <div className="text-xs text-gray-500">BGM</div>
+          <div className="text-white font-bold text-xs">{Array.isArray(data.bgm_keywords) ? data.bgm_keywords.join(", ") : "-"}</div>
+        </div>
+      </div>
+
+      {/* 씬별 상세 */}
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      {scenes.map((s: any, i: number) => (
+        <div key={i} className="bg-[#0f0f13] rounded-lg p-4 space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-semibold text-white">씬 {String(s.scene_number)}</span>
+            <div className="flex gap-2 text-xs text-gray-500">
+              <span>{String(s.start_sec)}s ~ {String(s.end_sec)}s</span>
+              <span className="text-purple-400">{typeLabel[String(s.scene_type)] || String(s.scene_type)}</span>
+            </div>
+          </div>
+          <div className="text-sm text-gray-300">{String(s.visual_description || "")}</div>
+          <div className="text-sm">
+            <span className="text-gray-500">TTS:</span>
+            <span className="text-indigo-300 ml-2">&ldquo;{String(s.tts_script || "")}&rdquo;</span>
+          </div>
+          <div className="text-sm">
+            <span className="text-gray-500">자막:</span>
+            <span className="text-gray-300 ml-2">{String(s.subtitle_text || "")}</span>
+          </div>
+          {Array.isArray(s.emphasis_keywords) && (
+            <div className="flex gap-1">
+              {(s.emphasis_keywords as string[]).map((kw: string, j: number) => (
+                <span key={j} className="text-xs bg-amber-900/30 text-amber-400 px-2 py-0.5 rounded">{kw}</span>
+              ))}
+            </div>
+          )}
+          {s.ai_video_prompt && (
+            <div className="mt-2 bg-[#1a1a24] p-3 rounded">
+              <div className="text-xs text-gray-500 mb-1">AI 영상 프롬프트 (복사용)</div>
+              <pre className="text-xs text-emerald-400 whitespace-pre-wrap cursor-pointer" onClick={async () => {
+                await navigator.clipboard.writeText(String(s.ai_video_prompt));
+              }}>{String(s.ai_video_prompt)}</pre>
+            </div>
+          )}
+          {s.capcut_notes && (
+            <div className="text-xs text-gray-500">CapCut: {String(s.capcut_notes)}</div>
+          )}
+        </div>
+      ))}
+
+      {/* 편집 가이드 */}
+      {data.editing_summary && (
+        <div className="bg-[#0f0f13] p-4 rounded">
+          <div className="text-xs text-gray-500 mb-1">전체 편집 가이드</div>
+          <div className="text-sm text-gray-300">{String(data.editing_summary)}</div>
+        </div>
+      )}
     </div>
   );
 }
