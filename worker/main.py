@@ -248,55 +248,65 @@ def handle():
 @app.route("/assemble", methods=["POST"])
 def assemble():
     """콘티 → TTS + 이미지 → 영상 조립."""
-    from tts import generate_all_scene_tts
-    from scene_renderer import render_all_scenes
-    from assembler import assemble_video
-    from google.cloud import storage as gcs
-
-    data = flask_request.json or {}
-    conti_id = data.get("conti_id", "")
-    conti_json = data.get("conti_json", "")
-    voice = data.get("voice", "ko-KR-SunHiNeural")
-
-    if not conti_json:
-        # 시트에서 가져오기
-        ss = get_sheets()
-        ws = ss.worksheet("릴스-콘티")
-        records = ws.get_all_records()
-        for r in records:
-            if r.get("ID") == conti_id:
-                conti_json = r.get("콘티JSON", "")
-                break
-
-    if not conti_json:
-        return {"error": "콘티를 찾을 수 없습니다"}, 404
+    import traceback
+    import shutil
 
     try:
+        from tts import generate_all_scene_tts
+        from scene_renderer import render_all_scenes
+        from assembler import assemble_video
+        from google.cloud import storage as gcs
+
+        data = flask_request.json or {}
+        conti_id = data.get("conti_id", "")
+        conti_json = data.get("conti_json", "")
+        voice = data.get("voice", "ko-KR-SunHiNeural")
+
+        if not conti_json:
+            ss = get_sheets()
+            ws = ss.worksheet("릴스-콘티")
+            records = ws.get_all_records()
+            for r in records:
+                if r.get("ID") == conti_id:
+                    conti_json = str(r.get("콘티JSON", ""))
+                    break
+
+        if not conti_json:
+            return {"error": "콘티를 찾을 수 없습니다"}, 404
+
         conti_data = json.loads(clean_json(conti_json))
         scenes = conti_data.get("scenes", [])
+        print(f"[assemble] 시작: {conti_id}, {len(scenes)}개 씬")
 
         work_dir = Path(f"/tmp/assemble_{conti_id or 'temp'}")
+        if work_dir.exists():
+            shutil.rmtree(work_dir)
         work_dir.mkdir(parents=True, exist_ok=True)
         tts_dir = work_dir / "tts"
         images_dir = work_dir / "images"
         output_path = work_dir / "output.mp4"
 
         # 1) TTS 생성
-        print(f"TTS 생성 중... ({len(scenes)}개 씬)")
+        print(f"[assemble] TTS 생성 중...")
         tts_paths = generate_all_scene_tts(scenes, tts_dir, voice)
         tts_count = sum(1 for p in tts_paths if p)
+        print(f"[assemble] TTS {tts_count}개 완료")
 
         # 2) 씬 이미지 생성
-        print(f"씬 이미지 생성 중...")
+        print(f"[assemble] 씬 이미지 생성 중...")
         image_paths = render_all_scenes(scenes, images_dir)
+        print(f"[assemble] 이미지 {len(image_paths)}개 완료")
 
         # 3) FFmpeg 조립
-        print(f"영상 조립 중...")
+        print(f"[assemble] FFmpeg 조립 중...")
         assemble_video(json.dumps(conti_data), images_dir, tts_dir, output_path)
+        print(f"[assemble] 영상 조립 완료: {output_path}")
 
-        # 4) GCS에 업로드 (다운로드 링크용)
+        # 4) GCS에 업로드
+        video_url = ""
         bucket_name = os.getenv("KIS_POSITIONS_BUCKET", "")
-        if bucket_name:
+        if bucket_name and output_path.exists():
+            print(f"[assemble] GCS 업로드 중...")
             gcs_client = gcs.Client()
             bucket = gcs_client.bucket(bucket_name)
             blob_name = f"videos/{conti_id or 'temp'}.mp4"
@@ -304,11 +314,9 @@ def assemble():
             blob.upload_from_filename(str(output_path), content_type="video/mp4")
             blob.make_public()
             video_url = blob.public_url
-        else:
-            video_url = ""
+            print(f"[assemble] 업로드 완료: {video_url}")
 
         # 정리
-        import shutil
         shutil.rmtree(work_dir, ignore_errors=True)
 
         return {
@@ -318,6 +326,7 @@ def assemble():
         }, 200
 
     except Exception as e:
+        print(f"[assemble] 에러: {traceback.format_exc()}")
         return {"error": f"조립 실패: {str(e)}"}, 500
 
 
