@@ -8,3 +8,4 @@ httpx
 edge-tts
 Pillow
 mutagen
+google-cloud-storage
