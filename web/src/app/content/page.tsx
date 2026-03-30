@@ -312,6 +312,21 @@ export default function ContentPage() {
                   await navigator.clipboard.writeText(contiDetail["콘티JSON"] || "");
                   toast("콘티 JSON 복사 완료!");
                 }} className="text-xs border border-[#2a2a3a] text-gray-400 px-3 py-1.5 rounded hover:text-white">JSON 복사</button>
+                <button onClick={async () => {
+                  toast("영상 조립 요청 중... (1~2분 소요)", "info");
+                  try {
+                    const data = await api("/api/assemble", {
+                      method: "POST",
+                      body: JSON.stringify({ conti_id: contiDetail["ID"], conti_json: contiDetail["콘티JSON"] }),
+                    });
+                    if (data.video_url) {
+                      toast("영상 조립 완료!");
+                      window.open(data.video_url, "_blank");
+                    } else {
+                      toast(data.message);
+                    }
+                  } catch (e) { toast((e as Error).message, "error"); }
+                }} className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded hover:bg-purple-700 font-semibold">영상 조립</button>
               </div>
               <div className="flex gap-2">
                 {["초안", "촬영중", "편집중", "발행완료"].filter(s => s !== contiDetail["상태"]).map(s => (

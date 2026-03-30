@@ -245,6 +245,82 @@ def handle():
     return {"processed": len(results), "results": results}, 200
 
 
+@app.route("/assemble", methods=["POST"])
+def assemble():
+    """콘티 → TTS + 이미지 → 영상 조립."""
+    from tts import generate_all_scene_tts
+    from scene_renderer import render_all_scenes
+    from assembler import assemble_video
+    from google.cloud import storage as gcs
+
+    data = flask_request.json or {}
+    conti_id = data.get("conti_id", "")
+    conti_json = data.get("conti_json", "")
+    voice = data.get("voice", "ko-KR-SunHiNeural")
+
+    if not conti_json:
+        # 시트에서 가져오기
+        ss = get_sheets()
+        ws = ss.worksheet("릴스-콘티")
+        records = ws.get_all_records()
+        for r in records:
+            if r.get("ID") == conti_id:
+                conti_json = r.get("콘티JSON", "")
+                break
+
+    if not conti_json:
+        return {"error": "콘티를 찾을 수 없습니다"}, 404
+
+    try:
+        conti_data = json.loads(clean_json(conti_json))
+        scenes = conti_data.get("scenes", [])
+
+        work_dir = Path(f"/tmp/assemble_{conti_id or 'temp'}")
+        work_dir.mkdir(parents=True, exist_ok=True)
+        tts_dir = work_dir / "tts"
+        images_dir = work_dir / "images"
+        output_path = work_dir / "output.mp4"
+
+        # 1) TTS 생성
+        print(f"TTS 생성 중... ({len(scenes)}개 씬)")
+        tts_paths = generate_all_scene_tts(scenes, tts_dir, voice)
+        tts_count = sum(1 for p in tts_paths if p)
+
+        # 2) 씬 이미지 생성
+        print(f"씬 이미지 생성 중...")
+        image_paths = render_all_scenes(scenes, images_dir)
+
+        # 3) FFmpeg 조립
+        print(f"영상 조립 중...")
+        assemble_video(json.dumps(conti_data), images_dir, tts_dir, output_path)
+
+        # 4) GCS에 업로드 (다운로드 링크용)
+        bucket_name = os.getenv("KIS_POSITIONS_BUCKET", "")
+        if bucket_name:
+            gcs_client = gcs.Client()
+            bucket = gcs_client.bucket(bucket_name)
+            blob_name = f"videos/{conti_id or 'temp'}.mp4"
+            blob = bucket.blob(blob_name)
+            blob.upload_from_filename(str(output_path), content_type="video/mp4")
+            blob.make_public()
+            video_url = blob.public_url
+        else:
+            video_url = ""
+
+        # 정리
+        import shutil
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+        return {
+            "message": f"영상 조립 완료! TTS {tts_count}개, 씬 {len(scenes)}개",
+            "video_url": video_url,
+            "conti_id": conti_id,
+        }, 200
+
+    except Exception as e:
+        return {"error": f"조립 실패: {str(e)}"}, 500
+
+
 @app.route("/daily-drafts", methods=["POST", "GET"])
 def daily_drafts():
     """매일 블로그 초안 2개 생성 (dev + cpc)."""
