@@ -226,10 +226,10 @@ export default function DashboardPage() {
             {history.length > 0 && (
               <div className="mt-4">
                 <p className="text-xs text-gray-500 font-semibold mb-2">최근 매매 이력</p>
-                {history.map((t, i) => (
+                {history.map((t: Record<string, unknown>, i: number) => (
                   <div key={i} className="flex justify-between py-2 border-b border-[#1f1f2f] text-sm">
-                    <span>{(t as Record<string, unknown>).name as string} <span className="text-xs text-gray-600">{(t as Record<string, unknown>).date as string}</span></span>
-                    <span className={pnlColor((t as Record<string, unknown>).pnl as number)}>{pnlSign((t as Record<string, unknown>).pnl as number)}{fmt((t as Record<string, unknown>).pnl as number)}원 ({(t as Record<string, unknown>).pnl_pct as number}%)</span>
+                    <span>{String(t.name)} <span className="text-xs text-gray-600">{String(t.date)}</span></span>
+                    <span className={pnlColor(Number(t.pnl))}>{pnlSign(Number(t.pnl))}{fmt(Number(t.pnl))}원 ({Number(t.pnl_pct)}%)</span>
                   </div>
                 ))}
               </div>
