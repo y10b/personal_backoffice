@@ -641,7 +641,35 @@ def sync_trading():
     for h in holdings:
         ws_hold.append_row([today, h["code"], h["name"], h["qty"], h["buy_price"], h["cur_price"], h["pnl_pct"], h["pnl"], "", "", ""], value_input_option="RAW")
 
-    return {"message": f"동기화 완료: 평가 {total_eval:,}원, 종목 {len(holdings)}개"}, 200
+    # 매매 이력 — GCS에서 읽어서 시트에 없는 것만 추가
+    new_history = 0
+    try:
+        import subprocess as _sp
+        gcs_result = _sp.run(
+            ["gsutil", "cat", f"gs://{os.getenv('KIS_POSITIONS_BUCKET', '')}/kis-trader/trade_history.json"],
+            capture_output=True, text=True,
+        )
+        if gcs_result.returncode == 0:
+            trade_history = json.loads(gcs_result.stdout)
+        else:
+            trade_history = []
+    except Exception:
+        trade_history = []
+
+    if trade_history:
+        ws_hist = ss.worksheet("매매-이력")
+        existing_hist = ws_hist.get_all_values()[1:]
+        existing_set = {(r[0], r[1]) for r in existing_hist}
+        for t in trade_history:
+            key = (t.get("date", ""), t.get("code", ""))
+            if key not in existing_set:
+                ws_hist.append_row([
+                    t.get("date", ""), t.get("code", ""), t.get("name", ""),
+                    t.get("pnl_pct", 0), t.get("pnl", 0),
+                ], value_input_option="RAW")
+                new_history += 1
+
+    return {"message": f"동기화 완료: 평가 {total_eval:,}원, 종목 {len(holdings)}개, 이력 +{new_history}건"}, 200
 
 
 if __name__ == "__main__":

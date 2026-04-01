@@ -157,7 +157,8 @@ export default function DashboardPage() {
 
   const bal = (trading as Record<string, Record<string, unknown>> | null)?.balance || {};
   const holdings = (bal.holdings || []) as Record<string, unknown>[];
-  const history = ((trading as Record<string, unknown[]> | null)?.history || []).slice(-10).reverse();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const history = (Array.isArray((trading as any)?.history) ? (trading as any).history : []).slice(-10).reverse();
 
   const badgeClass: Record<string, string> = {
     "초안": "bg-blue-900/50 text-blue-400",

@@ -17,11 +17,17 @@ const SHEET_ID = () => process.env.GOOGLE_SHEETS_ID!;
 export async function getTradingDashboard() {
   const sheets = getSheets();
 
-  const [balanceRes, holdingsRes, historyRes] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: "매매-잔고!A:G" }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: "매매-보유종목!A:K" }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: "매매-이력!A:E" }),
-  ]);
+  let balanceRes, holdingsRes, historyRes;
+  try {
+    [balanceRes, holdingsRes, historyRes] = await Promise.all([
+      sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: "매매-잔고!A:G" }),
+      sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: "매매-보유종목!A:K" }),
+      sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID(), range: "매매-이력!A:E" }),
+    ]);
+  } catch (e) {
+    console.error("Trading sheets read error:", e);
+    return { balance: { holdings: [], total_eval: 0, total_pnl: 0, total_buy: 0, cash: 0 }, history: [], today_pnl: 0, week_pnl: 0, total_realized: 0, unrealized_pnl: 0 };
+  }
 
   // 잔고 — 마지막 행 (최신)
   const balanceRows = (balanceRes.data.values || []).slice(1);
