@@ -193,9 +193,25 @@ export default function ContentPage() {
               <button onClick={loadContis} className="text-xs text-gray-400 border border-[#2a2a3a] px-3 py-1 rounded hover:text-white">새로고침</button>
             </div>
             <div className="p-5 space-y-4">
-              {/* 요청 폼 */}
+              {/* 국뽕+경제 자동 생성 */}
+              <div className="bg-gradient-to-r from-red-900/20 to-blue-900/20 border border-red-800/30 p-4 rounded-lg flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-semibold text-white">국뽕+경제 숏폼</p>
+                  <p className="text-xs text-gray-400 mt-1">트렌딩 뉴스 기반 리스트형 콘티 자동 생성 (매일 08:00 자동)</p>
+                </div>
+                <button onClick={async () => {
+                  toast("국뽕+경제 숏폼 생성 중...", "info");
+                  try {
+                    const data = await api("/api/daily-shorts", { method: "POST" });
+                    toast(`${data.title || "숏폼"} 생성 완료!`);
+                    loadContis();
+                  } catch (e) { toast((e as Error).message, "error"); }
+                }} className="bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-red-700 whitespace-nowrap">지금 생성</button>
+              </div>
+
+              {/* 커스텀 요청 폼 */}
               <div className="bg-[#0f0f13] p-4 rounded-lg space-y-3">
-                <p className="text-xs text-gray-500 font-semibold">콘티 생성 요청</p>
+                <p className="text-xs text-gray-500 font-semibold">커스텀 콘티 생성</p>
                 <div className="flex gap-3 flex-wrap">
                   <input placeholder="참고 영상 URL (선택)" value={reelForm.url} onChange={e => setReelForm({...reelForm, url: e.target.value})} className="flex-1 min-w-[200px] bg-[#1a1a24] border border-[#2a2a3a] text-gray-200 px-3 py-2 rounded text-sm" />
                   <select value={reelForm.contentType} onChange={e => setReelForm({...reelForm, contentType: e.target.value})} className="bg-[#1a1a24] border border-[#2a2a3a] text-gray-200 px-3 py-2 rounded text-sm">

@@ -6,6 +6,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py tts.py scene_renderer.py assembler.py ./
+COPY main.py tts.py scene_renderer.py assembler.py news.py ./
 
 CMD ["python", "main.py"]
