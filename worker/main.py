@@ -106,14 +106,20 @@ CONTI_PROMPT_NEWS = """너는 2026년 한국 숏폼 콘텐츠(릴스/숏츠) 전
 - "전 세계가 한국을 부러워하는 진짜 이유"
 - "한국 경제가 역대급인 6가지 근거"
 
-## ai_video_prompt 규칙
-- 영어로 작성
-- 각 씬의 내용과 매칭되는 시네마틱 영상 프롬프트
-- "No background music, no voice, no text overlay, Cinematic, 24fps" 항상 포함
-- 예: "Aerial shot of Samsung semiconductor factory in Korea, massive clean room with workers in white suits. Cinematic, 24fps. No background music, no voice, no text overlay."
+## image_keywords 규칙 (매우 중요)
+- 각 씬마다 image_keywords를 영어로 2~3개 작성
+- 이 키워드로 스톡 이미지를 자동 검색함
+- 씬 내용과 정확히 매칭되는 구체적 키워드 사용
+- 예: ["semiconductor factory", "clean room"] (O)
+- 예: ["korea"] (X — 너무 추상적)
+- 예: ["Samsung Galaxy phone", "technology"] (O)
+
+## scene_type
+- 모든 씬은 "stock_image"로 설정 (스톡 이미지 자동 검색)
+- ai_video_prompt는 사용하지 않음 (null)
 
 ## JSON 출력
-{{"title":"","total_duration_sec":0,"bgm_keywords":["motivational","epic","korea"],"font_recommendation":"Pretendard Bold","scenes":[{{"scene_number":1,"start_sec":0,"end_sec":2,"scene_type":"ai_video","visual_description":"","tts_script":"","subtitle_text":"","emphasis_keywords":[],"ai_video_prompt":"","capcut_notes":"하드컷 전환"}}],"editing_summary":""}}
+{{"title":"","total_duration_sec":0,"bgm_keywords":["motivational","epic","korea"],"font_recommendation":"Pretendard Bold","scenes":[{{"scene_number":1,"start_sec":0,"end_sec":2,"scene_type":"stock_image","visual_description":"","tts_script":"","subtitle_text":"","emphasis_keywords":[],"image_keywords":["keyword1","keyword2"],"ai_video_prompt":null,"capcut_notes":"하드컷 전환"}}],"editing_summary":""}}
 JSON만 출력해."""
 
 
@@ -270,6 +276,7 @@ def assemble():
     try:
         from tts import generate_all_scene_tts
         from scene_renderer import render_all_scenes
+        from stock_media import fetch_all_scene_images
         from assembler import assemble_video
         from google.cloud import storage as gcs
 
@@ -308,10 +315,20 @@ def assemble():
         tts_count = sum(1 for p in tts_paths if p)
         print(f"[assemble] TTS {tts_count}개 완료")
 
-        # 2) 씬 이미지 생성
-        print(f"[assemble] 씬 이미지 생성 중...")
-        image_paths = render_all_scenes(scenes, images_dir)
-        print(f"[assemble] 이미지 {len(image_paths)}개 완료")
+        # 2) 스톡 이미지 자동 다운로드
+        print(f"[assemble] 스톡 이미지 검색 중...", flush=True)
+        stock_paths = fetch_all_scene_images(scenes, images_dir)
+        stock_count = sum(1 for p in stock_paths if p)
+        print(f"[assemble] 스톡 이미지 {stock_count}개 다운로드", flush=True)
+
+        # 스톡 없는 씬은 텍스트 이미지로 대체
+        for i, scene in enumerate(scenes):
+            num = scene.get("scene_number", 0)
+            img_path = images_dir / f"scene_{num:02d}.jpg"
+            if not img_path.exists():
+                render_all_scenes([scene], images_dir)
+        image_paths = sorted(images_dir.glob("scene_*"))
+        print(f"[assemble] 이미지 총 {len(image_paths)}개 완료", flush=True)
 
         # 3) FFmpeg 조립
         print(f"[assemble] FFmpeg 조립 중...")
