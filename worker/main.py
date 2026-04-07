@@ -615,19 +615,19 @@ def daily_drafts():
 
             # 글 생성
             if blog_type == "dev":
-                blog_prompt = f"""개발 블로그 전문 작가. SEO 최적화 글 작성.
-중요: 현재 2026년. 실제 존재하는 정확한 정보만 사용. 추측/지어내기 금지. 버전/명령어/API는 실제 것만.
-키워드: {keyword}. 톤: 친근한 ~해요체. 독자: 주니어 개발자.
-H2 3~5개, 1500~2500자, 제목에 2026 포함 권장, 마지막에 CTA.
+                blog_prompt = f"""10년차 시니어 개발자이자 SEO 전문가. 티스토리 개발 블로그 "개발막차" 글 작성.
+규칙: 2026년 기준. 실제 정보만. "(확인 필요)" 같은 메타 표시 금지.
+SEO: 제목에 키워드 앞쪽 배치 + "2026". H2 모두 키워드 변형 포함 (인사말 H2 금지). 첫 문장 키워드로 시작 (인사말 없이 바로 본론). 서론 3줄 이내.
+키워드: {keyword}. 톤: ~거든요/~인데요 체. 코드블록 필수. 2000~3000자.
 JSON: {{"title":"","meta_description":"","keywords":[],"slug":"","category":"","tags":[],"html_content":"","images":[],"estimated_reading_min":5,"cpc_category":""}}
-JSON만 출력."""
+JSON만."""
             else:
-                blog_prompt = f"""청년 N잡러 경제 블로그 작가. SEO 최적화 정보성 글.
-중요: 현재 2026년. 실제 존재하는 정확한 정보만 사용. 지원금/금리/조건은 2026년 실제 데이터 기준. 없는 제도 지어내지 마. 불확실하면 "확인 필요" 표시. 면책조항: "2026년 기준 정보이며, 정확한 내용은 관련 기관에 확인하세요."
-키워드: {keyword}. 독자: 20~30대 청년, 프리랜서.
-H2 4~6개, 2000~3000자, 비교표/리스트 활용, 제목에 2026 포함 권장.
+                blog_prompt = f"""청년 경제/재테크 전문 블로거. 티스토리 CPC 블로그 글 작성.
+규칙: 2026년 기준. 실제 정보만. 없는 제도 금지. "(확인 필요)" 본문에 넣지 말고 "정확한 조건은 [기관명] 홈페이지에서 확인하세요"로 안내.
+SEO: 제목에 키워드 앞쪽 + "2026" + 숫자. H2 모두 키워드 변형 (감성 H2 금지). 첫 문장 키워드+핵심 수치로 시작. 서론 3줄 이내. 비교표 1개 필수.
+키워드: {keyword}. 톤: ~입니다 기본 + ~거든요 섞기. 2500~3500자. 면책조항 마지막에.
 JSON: {{"title":"","meta_description":"","keywords":[],"slug":"","category":"","tags":[],"html_content":"","images":[],"estimated_reading_min":7,"cpc_category":"청년 지원금"}}
-JSON만 출력."""
+JSON만."""
 
             post_res = gemini.models.generate_content(
                 model="gemini-2.5-flash", contents=blog_prompt,
